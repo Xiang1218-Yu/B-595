@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # MySQL数据库
+  db:
+    image: mysql:8.0
+    container_name: lineage-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: lineage_db
+      TZ: Asia/Shanghai
+    ports:
+      - "13595:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lineage-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot后端
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lineage-backend
+    restart: always
+    ports:
+      - "8595:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/lineage_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root123
+      TZ: Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - lineage-network
+
+  # Vue前端
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lineage-frontend
+    restart: always
+    ports:
+      - "3595:80"
+    depends_on:
+      - backend
+    networks:
+      - lineage-network
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  lineage-network:
+    driver: bridge
